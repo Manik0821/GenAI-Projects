@@ -18,3 +18,8 @@ venv/
 
 # Output files
 *.json
+
+recipe_images
+processing-data/synthetic_recipe_images
+vectorDB-index/chroma_db
+*.zip
