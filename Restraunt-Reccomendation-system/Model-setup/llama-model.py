@@ -22,6 +22,14 @@ def ask_llm(prompt):
     )
     return response.choices[0].message.content
 
+def make_model():
+    return ChatOpenAI(
+        model="meta/llama-3.1-70b-instruct",
+        base_url="https://integrate.api.nvidia.com/v1",
+        api_key=os.getenv("NVIDIA_API_KEY1"),
+        temperature=0.7,
+    )
+
 try:
     print(ask_llm("Suggest a restaurant in Bangalore"))
 except Exception as e:
