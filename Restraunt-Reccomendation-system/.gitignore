@@ -5,6 +5,7 @@ __pycache__/
 
 # Virtual environment
 venv/
+venv311
 .env/
 
 # Environment variables (VERY IMPORTANT)
@@ -23,3 +24,4 @@ recipe_images
 processing-data/synthetic_recipe_images
 vectorDB-index/chroma_db
 *.zip
+chroma_db
