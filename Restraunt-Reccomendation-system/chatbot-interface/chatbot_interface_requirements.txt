@@ -1,0 +1,18 @@
+%%capture
+!pip install --upgrade pip
+
+# Core UI (stable with Python 3.12)
+!pip install gradio==4.29.0
+!pip install jinja2==3.1.4
+
+# LangChain stack (compatible set)
+!pip install langchain==0.2.16
+!pip install langchain-openai==0.1.7
+!pip install langchain-core==0.2.38
+
+!pip install langgraph==0.1.19
+!pip install huggingface_hub==0.23.5
+
+
+!pip install fastapi==0.110.0
+!pip install starlette==0.36.3
