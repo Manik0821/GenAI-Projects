@@ -1,3 +1,5 @@
+"""Minimal MCP integration test script for get_restaurant_info."""
+
 import asyncio
 from mcp import ClientSession, StdioServerParameters
 from mcp.client.stdio import stdio_client

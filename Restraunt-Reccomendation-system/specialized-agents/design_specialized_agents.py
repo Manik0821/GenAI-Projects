@@ -1,3 +1,5 @@
+"""Design-time script for authoring and testing specialized agent prompts."""
+
 import os
 from typing import List, Dict, Any
 from pathlib import Path

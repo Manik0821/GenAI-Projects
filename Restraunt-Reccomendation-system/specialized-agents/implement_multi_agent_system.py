@@ -1,3 +1,5 @@
+"""Execution workflow that orchestrates the multi-agent recommendation pipeline."""
+
 import os
 from typing import List, Dict, Any
 from pathlib import Path

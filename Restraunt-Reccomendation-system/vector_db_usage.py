@@ -1,3 +1,5 @@
+"""Demonstrates retrieval queries over prebuilt text and image vector indexes."""
+
 # ================================
 # Import dependencies
 # ================================

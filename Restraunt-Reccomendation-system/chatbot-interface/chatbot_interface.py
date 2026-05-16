@@ -1,3 +1,5 @@
+"""Prototype chatbot interface and intent/preference extraction helpers."""
+
 import gradio as gr
 import json
 from typing import List, Tuple, Dict, Any

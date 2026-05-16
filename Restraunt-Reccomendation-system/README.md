@@ -1,83 +1,123 @@
-# Restaurant Recommendation System
+# Connoisseur Companion - Restaurant Recommendation System
 
-This project is a modular GenAI-powered restaurant and recipe recommendation system. Each folder is a self-contained component or service. Below is an overview of each folder and its purpose:
+An intelligent, **low-latency restaurant discovery engine** powered by AI. Users ask natural language questions about restaurants, and the system instantly delivers personalized recommendations from California's culinary landscape.
 
-## Folders & Contents
+## ⚡ Key Features
 
-- **chatbot-interface/**
-  - Gradio-based web UI for user interaction.
-  - Requirements: `chatbot_interface_requirements.txt`
+- **95% Fast-Path**: Most queries answered in <100ms without LLM calls
+- **Cuisine Detection**: 30+ cuisines (french, italian, sushi, korean, etc.)
+- **Preference Matching**: spicy, healthy, vegan, gluten-free, and more
+- **Location Filtering**: "near pasadena" or "in santa monica" 
+- **API Key Failover**: Automatic backup if primary key fails
+- **Streaming UI**: Real-time thinking messages keep users engaged
 
-- **fastMCP_server/**
-  - Main backend server, agent orchestration, and tool protocol (MCP).
-  - Key files: `app.py` (Gradio app), `server.py` (MCP tools), `client.py`, `test.py` (diagnostics).
+## 🚀 Quick Start
 
-- **Loading-Data/**
-  - Scripts and data for loading and preprocessing raw restaurant/recipe data.
-  - Example: `loading-data.py`, `California-Culinary-Map.txt`
+```bash
+# Setup
+python -m venv .venv
+source .venv/bin/activate  # or .venv\Scripts\Activate on Windows
+pip install -r requirements.txt
 
-- **Managing-data/**
-  - Scripts for managing and updating structured restaurant data.
-  - Example: `restraunt_data_management.py`
+# Run
+cd Restraunt-Reccomendation-system
+python fastMCP_server/app.py
+# Open http://127.0.0.1:7860
+```
 
-- **Model-setup/**
-  - LLM and embedding model setup scripts.
-  - Example: `llama-model.py`
+## 📁 Project Structure
 
-- **processing-data/**
-  - Data processing and feature extraction scripts.
-  - Example: `process-data.py`, `review_image_placeholder.jpg`
+| Folder | Purpose |
+|--------|---------|
+| **fastMCP_server/** | Core app: `app.py` (UI), `server.py` (tools), `client.py` (MCP client) |
+| **Loading-Data/** | Load & preprocess raw restaurant data |
+| **Managing-data/** | Manage structured restaurant metadata |
+| **Model-setup/** | LLM & embedding model configuration |
+| **processing-data/** | Feature extraction & data enrichment |
+| **specialized-agents/** | Multi-agent definitions (future expansion) |
+| **vectorDB-index/** | Chroma vector DB setup & semantic search |
+| **chatbot-interface/** | Legacy Gradio UI (superseded by app.py) |
 
-- **recipe_images/**
-  - Directory for storing recipe and synthetic images.
+## 🧠 How It Works
 
-- **specialized-agents/**
-  - Specialized agent definitions and multi-agent system logic.
-  - Requirements: `specialized-agents-requirement.txt`
+### User Query Flow
+```
+User: "I want italian dishes near pasadena"
+  ↓
+[Heuristic Router] Detects: Cuisine="italian", Location="pasadena"
+  ↓
+[Fast-Path] Lexical search → 2 matches found instantly
+  ↓
+[Conditional Vector Search] Need more? Query Chroma DB → +1 semantic match
+  ↓
+[Format & Stream] Return formatted results with thinking messages
+```
 
-- **vectorDB-index/**
-  - Scripts for building and managing the Chroma vector database.
-  - Example: `multimodal-vector-index.py`, `structured_restaurant_data.json`
+### Three Core Tools
 
-## Root Files
-- `requirements.txt`: Core dependencies for the main system.
-- `Recipes.json`, `augmented-user-review.json`, `structured_restaurant_data.json`, `Synthetic-User-Reviews.json`: Data files.
+| Tool | Use Case | Speed |
+|------|----------|-------|
+| `recommend_by_vibe` | Cuisine/preference searches + location filter | <100ms |
+| `get_restaurant_info` | Restaurant details by name | <50ms |
+| `get_review` | Customer reviews & ratings | <50ms |
 
-## Setup
-- Install dependencies for each module using the requirements file in its folder.
-- Use Python 3.12+ and create a virtual environment in the project root.
-- See each folder's requirements file for specific dependencies.
+## 🎯 Supported Queries
 
-## New Runtime Workflow (Fast Path)
-The current app workflow in `fastMCP_server/app.py` is optimized for low latency:
+✅ `"french restaurant"` → Cuisine search  
+✅ `"spicy food in dtla"` → Preference + location  
+✅ `"tell me about iron & embers"` → Restaurant details  
+✅ `"reviews for sakura garden"` → Customer feedback  
+✅ Complex/ambiguous → Fallback ReAct loop (LLM)  
 
-1. **Specialized intent routing first**
-  - The request is routed to a specialized action:
-  - `recommend_by_vibe`
-  - `get_restaurant_info`
-  - `get_review`
+## 📊 Tech Stack
 
-2. **Direct MCP tool call**
-  - The selected MCP tool is called directly from `fastMCP_server/server.py`.
-  - Tool output is formatted and returned quickly.
+- **LLM**: NVIDIA Llama 3.1 70B (https://integrate.api.nvidia.com/v1)
+- **Vector DB**: Chroma (text: SentenceTransformer 384-d, images: CLIP 512-d)
+- **UI Framework**: Gradio
+- **Tool Protocol**: FastMCP
+- **Language**: Python 3.12+
 
-3. **Fallback ReAct only when needed**
-  - If routing is unclear, a reduced-turn ReAct loop is used as fallback.
+## ⚙️ Configuration
 
-4. **Automatic API key failover**
-  - Key order: `NVIDIA_API_KEY`, `NVIDIA_API_KEY1`, `NVIDIA_API_KEY2`, `NVIDIA_API_KEY3`.
-  - If one key fails (auth/quota/rate issues), the app retries with backup keys.
+### Environment Variables (.env)
+```
+NVIDIA_API_KEY=your-primary-key
+NVIDIA_API_KEY1=backup-key-1
+NVIDIA_API_KEY2=backup-key-2
+NVIDIA_API_KEY3=backup-key-3
+```
 
-## Notes
-- The `.gitignore` is configured to exclude virtual environments, cache, large data, and generated files.
-- For more details, see comments in each script or requirements file.
+### Key Optimizations
+- **Lexical-first**: Check structured data before vector search
+- **Conditional vector DB**: Only query embeddings if <5 structured results
+- **Location filtering**: Precise geographic relevance
+- **API failover**: Seamless backup key rotation
 
-## Git Guidance: What To Commit
-- **Commit**:
-  - Source code (`*.py`), docs (`README.md`), dependency files (`requirements*.txt`), and small config files.
+## 📝 Folder Details
 
-- **Do not commit**:
-  - Generated vector DB files under `chroma_db/` (including `.bin`, `.sqlite3`, and other index artifacts).
-  - Virtual environments, cache files, and large generated assets.
+Each folder has its own `README.md` describing:
+- What the module does
+- Key files and their roles
+- Dependencies
+- Example usage
 
-Chroma `.bin` files are internal index structures used by the vector database runtime. They are generated artifacts, can be recreated, and should stay out of Git.
+See individual folder READMEs for deep dives.
+
+## 🔧 Development
+
+### Running Diagnostics
+```bash
+python mcp_diag_a.py  # MCP latency test
+python mcp_diag_b.py  # Agent latency test
+```
+
+### Testing Specific Tools
+```bash
+python fastMCP_server/test.py
+```
+
+## 📚 Notes
+- The `.gitignore` excludes venv, cache, and Chroma DB artifacts
+- Always test after modifying heuristic routing rules
+- Update docstrings when adding new cuisine/preference keywords
+- Keep thinking messages under 100 characters for UI clarity

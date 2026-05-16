@@ -1,3 +1,5 @@
+"""Notebook-style processing pipeline for review/image enrichment experiments."""
+
 import numpy as np
 import matplotlib.pyplot as plt
 import json

@@ -1,3 +1,5 @@
+"""CLI utility to inspect, edit, and repair structured restaurant data."""
+
 import json
 import os
 from openai import OpenAI

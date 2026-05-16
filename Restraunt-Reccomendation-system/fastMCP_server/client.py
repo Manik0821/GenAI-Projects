@@ -1,3 +1,5 @@
+"""Async MCP client utility for tool discovery and invocation experiments."""
+
 # Libraries for MCP client, LLM handling, and async operations
 import asyncio
 import json

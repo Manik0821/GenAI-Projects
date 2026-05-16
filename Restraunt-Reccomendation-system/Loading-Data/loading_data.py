@@ -1,3 +1,5 @@
+"""Transforms raw culinary map text into structured restaurant JSON records."""
+
 # 1.1: Define the file_path to the text file
 file_path = "California-Culinary-Map.txt"   # change this if your file is in another folder
 

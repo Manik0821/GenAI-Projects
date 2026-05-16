@@ -37,3 +37,9 @@ Recipes.json
 
 # Ignore test artifacts
 test_outputs/
+
+# Diagnostic and benchmarking scripts
+mcp_diag_a.py
+mcp_diag_b.py
+fastMCP_server/diag_a.py
+fastMCP_server/diag_b.py

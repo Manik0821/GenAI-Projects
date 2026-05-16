@@ -1,3 +1,5 @@
+"""Builds multimodal Chroma indexes for restaurant text and recipe images."""
+
 # ================================
 # Imports
 # ================================

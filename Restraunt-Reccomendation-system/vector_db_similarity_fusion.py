@@ -1,3 +1,5 @@
+"""Runs multimodal similarity fusion across article and image retrieval results."""
+
 # ================================
 # Import environment
 # (Dependencies were installed in Lesson 1)

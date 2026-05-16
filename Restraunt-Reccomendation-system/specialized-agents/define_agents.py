@@ -1,4 +1,6 @@
 
+"""Agent role and prompt configuration registry for specialized workflows."""
+
 user_profile_agent_config = {
     "role": "User Profile Generator",
     "goal": "Analyze user restaurant visit history and social media posts to create a comprehensive profile including preferences, dietary restrictions, favorite cuisines, and dining patterns.",

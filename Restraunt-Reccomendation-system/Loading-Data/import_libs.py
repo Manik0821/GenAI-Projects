@@ -1,3 +1,5 @@
+"""Dependency/bootstrap imports used by the data loading notebook-style scripts."""
+
 import numpy as np
 import matplotlib.pyplot as plt
 import json
