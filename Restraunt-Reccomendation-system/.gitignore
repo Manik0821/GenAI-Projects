@@ -1,27 +1,39 @@
-# Python
+# Bytecode and cache
 __pycache__/
 *.pyc
 *.pyo
 
-# Virtual environment
+# Virtual environments
 venv/
-venv311
-.env/
+.venv/
+env/
+venv311/
 
-# Environment variables (VERY IMPORTANT)
+# Environment variables
 .env
 
-# Mac system files
+# System files
 .DS_Store
 
 # Jupyter
 .ipynb_checkpoints/
 
-# Output files
-*.json
-
-recipe_images
-processing-data/synthetic_recipe_images
-vectorDB-index/chroma_db
+# Data and outputs
+recipe_images/
+synthetic_recipe_images/
+chroma_db/
+vectorDB-index/chroma_db/
+**/chroma_db/
+**/chroma_db/**/*.bin
+**/chroma_db/**/*.sqlite3
+**/chroma_db/**/*.pkl
+processing-data/synthetic_recipe_images/
 *.zip
-chroma_db
+*.json
+structured_restaurant_data.json
+augmented-user-review.json
+Synthetic-User-Reviews.json
+Recipes.json
+
+# Ignore test artifacts
+test_outputs/

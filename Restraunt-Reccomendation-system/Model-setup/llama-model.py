@@ -1,12 +1,23 @@
 import os
 from dotenv import load_dotenv
 from openai import OpenAI
+from langchain_openai import ChatOpenAI
 
 # Load environment variables
 load_dotenv()
 
+
+def _get_nvidia_api_key() -> str:
+    return (
+        os.getenv("NVIDIA_API_KEY")
+        or os.getenv("NVIDIA_API_KEY1")
+        or os.getenv("NVIDIA_API_KEY2")
+        or os.getenv("NVIDIA_API_KEY3")
+        or ""
+    )
+
 client = OpenAI(
-    api_key=os.getenv("NVIDIA_API_KEY2"),   # your nvapi- key
+    api_key=_get_nvidia_api_key(),
     base_url="https://integrate.api.nvidia.com/v1"
 )
 
@@ -26,7 +37,7 @@ def make_model():
     return ChatOpenAI(
         model="meta/llama-3.1-70b-instruct",
         base_url="https://integrate.api.nvidia.com/v1",
-        api_key=os.getenv("NVIDIA_API_KEY1"),
+        api_key=_get_nvidia_api_key(),
         temperature=0.7,
     )
 

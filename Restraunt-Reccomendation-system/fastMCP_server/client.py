@@ -16,10 +16,33 @@ from openai import OpenAI
 import os
 
 from dotenv import load_dotenv
-env_path = Path(__file__).resolve().parent.parent / ".env"
-load_dotenv(dotenv_path=env_path)
 
-api_key = os.getenv("NVIDIA_API_KEY1")
+
+def _load_env() -> None:
+    script_dir = Path(__file__).resolve().parent
+    candidates = [
+        script_dir.parent / ".env",
+        script_dir.parent.parent / ".env",
+    ]
+    for env_path in candidates:
+        if env_path.exists():
+            load_dotenv(dotenv_path=env_path, override=False)
+
+
+_load_env()
+
+
+def _get_nvidia_api_key() -> str:
+    return (
+        os.getenv("NVIDIA_API_KEY")
+        or os.getenv("NVIDIA_API_KEY1")
+        or os.getenv("NVIDIA_API_KEY2")
+        or os.getenv("NVIDIA_API_KEY3")
+        or ""
+    )
+
+
+api_key = _get_nvidia_api_key()
 
 
 client = OpenAI(
@@ -53,7 +76,7 @@ async def handle_sampling(params: CreateMessageRequestParams) -> CreateMessageRe
     print(f"  Prompt preview: {prompt[:150]}...")
 
     response = client.chat.completions.create(
-        model="meta/llama3-70b-instruct",
+        model="meta/llama-3.1-70b-instruct",
         messages=[{"role": "user", "content": prompt}],
         max_tokens=params.maxTokens or 200
     )
@@ -65,7 +88,7 @@ async def handle_sampling(params: CreateMessageRequestParams) -> CreateMessageRe
     return CreateMessageResult(
         role="assistant",
         content=TextContent(type="text", text=response_text),
-        model="meta/llama3-70b-instruct",
+        model="meta/llama-3.1-70b-instruct",
     )
 
     # HELPER — Open a session, call a tool, and return the parsed JSON result

@@ -6,9 +6,23 @@ from langchain_core.messages import HumanMessage, SystemMessage
 
 # Configure OpenAI API
 import os
-# os.environ["OPENAI_API_KEY"] = ""
 
-llm = ChatOpenAI(model="gpt-4o-mini", temperature=0.7)
+
+def _get_nvidia_api_key() -> str:
+    return (
+        os.getenv("NVIDIA_API_KEY")
+        or os.getenv("NVIDIA_API_KEY1")
+        or os.getenv("NVIDIA_API_KEY2")
+        or os.getenv("NVIDIA_API_KEY3")
+        or ""
+    )
+
+llm = ChatOpenAI(
+    model="meta/llama-3.1-70b-instruct",
+    base_url="https://integrate.api.nvidia.com/v1",
+    api_key=_get_nvidia_api_key(),
+    temperature=0.7,
+)
 
 from typing import List, Tuple
 import gradio as gr

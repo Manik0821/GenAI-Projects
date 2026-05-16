@@ -1,10 +1,18 @@
-from ibm_watsonx_ai import Credentials
-from ibm_watsonx_ai.foundation_models import ModelInference
 import json
 import os
 from openai import OpenAI
 from dotenv import load_dotenv
 load_dotenv()
+
+
+def _get_nvidia_api_key() -> str:
+    return (
+        os.getenv("NVIDIA_API_KEY")
+        or os.getenv("NVIDIA_API_KEY1")
+        or os.getenv("NVIDIA_API_KEY2")
+        or os.getenv("NVIDIA_API_KEY3")
+        or ""
+    )
 
 # ---------------------------
 # FILE CONFIG
@@ -90,17 +98,17 @@ Return format exactly:
 
 
 # ---------------------------
-# LLM CALL (NVIDIA / IBM COMPATIBLE STYLE)
+# LLM CALL (NVIDIA LLAMA)
 # ---------------------------
 def llm_model(system_msg, prompt_txt):
 
     client = OpenAI(
-        api_key=os.getenv("NVIDIA_API_KEY1"),  # your NVIDIA key
+        api_key=_get_nvidia_api_key(),
         base_url="https://integrate.api.nvidia.com/v1"
     )
 
     response = client.chat.completions.create(
-        model="meta/llama-3.1-70b-instruct",  # or llama-3.2 / mistral if needed
+        model=os.getenv("NVIDIA_MODEL", "meta/llama-3.1-70b-instruct"),
         messages=[
             {"role": "system", "content": system_msg},
             {"role": "user", "content": prompt_txt}
