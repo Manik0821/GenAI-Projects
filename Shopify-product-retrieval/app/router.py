@@ -9,6 +9,23 @@ class RouteResult:
     ingredient_query: Optional[str] = None
 
 
+INGREDIENT_LIST_PATTERNS = [
+    r"\blist( all)?( the)? ingredients\b",
+    r"\blist ingredients\b",
+    r"\bshow( me)?( all)?( the)? ingredients\b",
+    r"\bwhat are( all)?( the)? ingredients\b",
+    r"\bingredients list\b",
+]
+
+INGREDIENT_ALTERNATIVE_PATTERNS = [
+    r"\bsimilar ingredients\b",
+    r"\balternative products\b",
+    r"\balternatives?\b",
+    r"\bsuggest alternatives?\b",
+    r"\bsimilar products\b",
+]
+
+
 REVIEW_PATTERNS = [
     r"\breview\b",
     r"\breviews\b",
@@ -17,6 +34,15 @@ REVIEW_PATTERNS = [
     r"\bhow many reviews\b",
     r"\bdoes .* have any reviews\b",
     r"\bdoes .* have reviews\b",
+]
+
+OVERVIEW_PATTERNS = [
+    r"\babout this product\b",
+    r"\bproduct details\b",
+    r"\bproduct overview\b",
+    r"\btell me about (this|the) product\b",
+    r"\bsummarize (this|the) product\b",
+    r"\bwhat is this product\b",
 ]
 
 AUDIT_PATTERNS = [
@@ -49,6 +75,15 @@ INGREDIENT_PATTERNS = [
 def route_question(question: str) -> RouteResult:
     q = normalize_question(question)
 
+    if matches_any(q, OVERVIEW_PATTERNS):
+        return RouteResult(intent="product_overview")
+
+    if matches_any(q, INGREDIENT_ALTERNATIVE_PATTERNS):
+        return RouteResult(intent="ingredients_with_alternatives")
+
+    if matches_any(q, INGREDIENT_LIST_PATTERNS):
+        return RouteResult(intent="ingredients_list")
+
     if matches_any(q, AUDIT_PATTERNS):
         return RouteResult(intent="page_improvement_audit")
 
@@ -59,7 +94,8 @@ def route_question(question: str) -> RouteResult:
     if matches_any(q, REVIEW_PATTERNS):
         return RouteResult(intent="reviews_check")
 
-    return RouteResult(intent="page_improvement_audit")
+    # Non-specific queries should default to product overview, not page audit.
+    return RouteResult(intent="product_overview")
 
 
 def normalize_question(question: str) -> str:

@@ -30,7 +30,11 @@ def extract_loc_values(xml_text: str) -> list[str]:
     return [loc.text.strip() for loc in root.findall(f".//{ns}loc") if loc.text]
 
 
-def discover_products_from_sitemap(base_domain: str = "https://healf.com") -> list[str]:
+def discover_products_from_sitemap(
+    base_domain: str = "https://healf.com",
+    max_child_sitemaps: int | None = None,
+    max_products: int | None = None,
+) -> list[str]:
     sitemap_index_url = f"{base_domain}/sitemap.xml"
     index_xml = fetch_xml(sitemap_index_url)
 
@@ -39,7 +43,9 @@ def discover_products_from_sitemap(base_domain: str = "https://healf.com") -> li
 
     all_products = set()
 
-    for sitemap_url in child_sitemaps:
+    for idx, sitemap_url in enumerate(child_sitemaps):
+        if max_child_sitemaps is not None and idx >= max_child_sitemaps:
+            break
         try:
             print(f"[discover_products_from_sitemap] Checking child sitemap: {sitemap_url}")
             child_xml = fetch_xml(sitemap_url)
@@ -49,9 +55,13 @@ def discover_products_from_sitemap(base_domain: str = "https://healf.com") -> li
             print(f"[discover_products_from_sitemap] Product URLs in this sitemap: {len(product_urls)}")
 
             all_products.update(product_urls)
+            if max_products is not None and len(all_products) >= max_products:
+                break
         except Exception as e:
             print(f"[discover_products_from_sitemap] Failed on {sitemap_url}: {e}")
 
     all_products = sorted(all_products)
+    if max_products is not None:
+        all_products = all_products[:max_products]
     print(f"[discover_products_from_sitemap] Total unique products: {len(all_products)}")
     return all_products
