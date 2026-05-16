@@ -1,0 +1,19 @@
+# Bytecode and cache
+__pycache__/
+app/__pycache__/
+*.pyc
+*.pyo
+
+# Virtual environments
+venv/
+.venv/
+env/
+
+# Environment variables
+.env
+
+# System files
+.DS_Store
+
+# Jupyter
+.ipynb_checkpoints/
