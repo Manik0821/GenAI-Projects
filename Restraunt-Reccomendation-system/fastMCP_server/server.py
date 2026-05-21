@@ -12,6 +12,7 @@ from pathlib import Path
 import json
 import re
 import hashlib
+import sys
 
 import numpy as np
 
@@ -81,6 +82,11 @@ CHROMA_DB_PATH = _first_existing(
 _ARTICLE_DB = None
 _TEXT_MODEL = None
 _TEXT_MODEL_READY = False
+
+
+def _debug_log(message: str) -> None:
+    """Write server diagnostics to stderr so stdout stays JSON-RPC only."""
+    print(message, file=sys.stderr, flush=True)
 
 
 def _deterministic_query_vec(value: str, dim: int = 384) -> np.ndarray:
@@ -322,9 +328,9 @@ def get_culinary_map() -> str:
 def get_restaurant_info(restaurant_name: str) -> str:
     """Search for a restaurant by name and return its structured details
     including cuisine, rating, price range, and signature dish."""
-    print(f"[*] Looking up restaurant: {restaurant_name}", flush=True)
+    _debug_log(f"[*] Looking up restaurant: {restaurant_name}")
     restaurants = load_restaurant_data()
-    print(f"[*] Loaded {len(restaurants)} restaurants from database", flush=True)
+    _debug_log(f"[*] Loaded {len(restaurants)} restaurants from database")
     query = restaurant_name.lower().strip()
 
     # Finding restuarants that match the query in the structured JSON data
@@ -334,7 +340,7 @@ def get_restaurant_info(restaurant_name: str) -> str:
         if query in name or name in query:
             matches.append(restaurant)
 
-    print(f"[*] Found {len(matches)} matching restaurants", flush=True)
+    _debug_log(f"[*] Found {len(matches)} matching restaurants")
 
     # Return a not found message if no matches are found
     if not matches:
@@ -347,7 +353,7 @@ def get_restaurant_info(restaurant_name: str) -> str:
             indent=2,
         )
 
-    print(f"[*] Formatting results for {len(matches)} restaurants", flush=True)
+    _debug_log(f"[*] Formatting results for {len(matches)} restaurants")
     return json.dumps(
         {"status": "found", "count": len(matches), "results": matches},
         indent=2,
@@ -363,9 +369,9 @@ def recommend_by_vibe(vibe: str) -> str:
     3. Backfill vector metadata from structured rows for cleaner output.
     4. Filter results by location if specified in the vibe string.
     """
-    print(f"[*] Searching for '{vibe}' vibe recommendations", flush=True)
+    _debug_log(f"[*] Searching for '{vibe}' vibe recommendations")
     restaurants = load_restaurant_data()
-    print(f"[*] Loaded {len(restaurants)} restaurants, running fast lexical matching...", flush=True)
+    _debug_log(f"[*] Loaded {len(restaurants)} restaurants, running fast lexical matching...")
     vibe_lower = vibe.lower().strip()
 
     # Extract location filter if present (e.g., "italian in pasadena" or "italian near pasadena")
@@ -374,7 +380,7 @@ def recommend_by_vibe(vibe: str) -> str:
     if location_match:
         location_filter = location_match.group(1).strip()
         vibe_lower = vibe_lower[:location_match.start()].strip()
-        print(f"[*] Location filter detected: {location_filter}", flush=True)
+        _debug_log(f"[*] Location filter detected: {location_filter}")
 
     # Pass 1: Search structured vibe tags in JSON (fast lexical path)
     structured_matches = []
@@ -400,13 +406,13 @@ def recommend_by_vibe(vibe: str) -> str:
                 }
             )
 
-    print(f"[*] Structured matches found: {len(structured_matches)}", flush=True)
+    _debug_log(f"[*] Structured matches found: {len(structured_matches)}")
 
     # Vector recall only when lexical pass is sparse.
     vector_matches = []
     article_db = _get_article_db() if len(structured_matches) < 5 else None
     if article_db is not None:
-        print(f"[*] Structured results sparse, querying vector database for semantic matches...", flush=True)
+        _debug_log(f"[*] Structured results sparse, querying vector database for semantic matches...")
         try:
             qvec = _get_text_query_vector(vibe_lower)
             queried = article_db._collection.query(
@@ -434,15 +440,15 @@ def recommend_by_vibe(vibe: str) -> str:
                         "score": round(1.0 - float(dist), 4),
                     }
                 )
-            print(f"[*] Vector search returned {len(vector_matches)} candidates", flush=True)
+            _debug_log(f"[*] Vector search returned {len(vector_matches)} candidates")
         except Exception as e:
-            print(f"[*] Vector search skipped (db unavailable or error): {e}", flush=True)
+            _debug_log(f"[*] Vector search skipped (db unavailable or error): {e}")
             vector_matches = []
     else:
-        print(f"[*] Sufficient structured matches ({len(structured_matches)}) found, skipping vector search", flush=True)
+        _debug_log(f"[*] Sufficient structured matches ({len(structured_matches)}) found, skipping vector search")
 
     # Backfill sparse vector metadata from structured records by name.
-    print(f"[*] Backfilling metadata from structured records...", flush=True)
+    _debug_log("[*] Backfilling metadata from structured records...")
     restaurant_by_name = {
         _normalize_name(str(r.get("name", ""))): r
         for r in restaurants
@@ -469,7 +475,7 @@ def recommend_by_vibe(vibe: str) -> str:
                     continue
             text_excerpts.append(para.strip()[:300])
 
-    print(f"[*] Complete. Returning {len(structured_matches) + len(vector_matches)} matches.", flush=True)
+    _debug_log(f"[*] Complete. Returning {len(structured_matches) + len(vector_matches)} matches.")
     return json.dumps(
         {
             "vibe_searched": vibe,
@@ -485,9 +491,9 @@ def recommend_by_vibe(vibe: str) -> str:
 @mcp.tool()
 def get_review(restaurant_name: str) -> str:
     """Retrieve the full review for a restaurant."""
-    print(f"[*] Fetching review for: {restaurant_name}", flush=True)
+    _debug_log(f"[*] Fetching review for: {restaurant_name}")
     reviews = load_review_data()
-    print(f"[*] Loaded {len(reviews)} reviews from database", flush=True)
+    _debug_log(f"[*] Loaded {len(reviews)} reviews from database")
     query = restaurant_name.lower().strip()
 
     # Find the matching review
@@ -500,7 +506,7 @@ def get_review(restaurant_name: str) -> str:
     
     # Return a not found message if no review matches the query
     if not matching_review:
-        print(f"[*] No review found matching: {restaurant_name}", flush=True)
+        _debug_log(f"[*] No review found matching: {restaurant_name}")
         return json.dumps(
             {
                 "status": "not_found",
@@ -510,7 +516,7 @@ def get_review(restaurant_name: str) -> str:
             indent=2,
         )
 
-    print(f"[*] Review found, formatting response", flush=True)
+    _debug_log("[*] Review found, formatting response")
     return json.dumps(
         {
             "status": "found",
