@@ -73,6 +73,21 @@ def _local_file_to_base64(image_path: str) -> tuple[str, str]:
         return base64.b64encode(fh.read()).decode("utf-8"), media_type
 
 
+def _image_block_from_source(image_source: str) -> dict[str, dict[str, str] | str]:
+    """Build the image content block for URLs, data URIs, or local files."""
+    source = image_source.strip()
+    if source.startswith("data:"):
+        return {"type": "image_url", "image_url": {"url": source}}
+    if source.startswith(("http://", "https://")):
+        return {"type": "image_url", "image_url": {"url": source}}
+
+    b64_data, media_type = _local_file_to_base64(source)
+    return {
+        "type": "image_url",
+        "image_url": {"url": f"data:{media_type};base64,{b64_data}"},
+    }
+
+
 def recognize_place_from_image(
     image_source: str,
     *,
@@ -81,12 +96,12 @@ def recognize_place_from_image(
     """Identify the city or landmark shown in an image.
 
     Args:
-        image_source: Local file path OR a public URL to the image.
+        image_source: Local file path, data URI, OR a public URL to the image.
                       Supported formats: JPEG, PNG, GIF, WEBP.
                       URLs are passed directly to the NVIDIA API — the API
                       must be able to reach the URL from its own network.
-                      For guaranteed delivery, use a local file path
-                      (the file is base64-encoded before sending).
+                  Local files and data URIs are base64-encoded or passed
+                  inline before sending.
         model: NVIDIA vision model identifier. Default is Llama 3.2 11B Vision.
 
     Returns:
@@ -96,17 +111,7 @@ def recognize_place_from_image(
         RuntimeError: if all available API keys fail.
         ValueError: if no API keys are configured in .env.
     """
-    # Build the image content block:
-    # - URLs are passed directly to the NVIDIA API
-    # - Local files are base64-encoded and embedded
-    if image_source.startswith(("http://", "https://")):
-        image_block = {"type": "image_url", "image_url": {"url": image_source}}
-    else:
-        b64_data, media_type = _local_file_to_base64(image_source)
-        image_block = {
-            "type": "image_url",
-            "image_url": {"url": f"data:{media_type};base64,{b64_data}"},
-        }
+    image_block = _image_block_from_source(image_source)
     messages = [
         {
             "role": "user",

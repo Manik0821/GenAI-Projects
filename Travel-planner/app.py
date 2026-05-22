@@ -1,5 +1,5 @@
-"""Travel Planner — Gradio UI
-Carousel → Search / Image Upload → Tabbed place details (mobile-first)
+﻿"""Travel Planner â€” Gradio UI
+Carousel â†’ Search / Image Upload â†’ Tabbed place details (mobile-first)
 """
 
 from __future__ import annotations
@@ -13,7 +13,7 @@ from pathlib import Path
 import gradio as gr
 import requests
 
-# ── backend modules (hyphenated folder) ────────────────────────────────────
+# â”€â”€ backend modules (hyphenated folder) â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 BASE = Path(__file__).parent
 
 
@@ -29,7 +29,7 @@ ir = _load("image_recognizer", "data-fetcher/image_recognizer.py")
 
 _WIKIPEDIA_HEADERS = {"User-Agent": "TravelPlanner/1.0 (local development)"}
 
-# ── carousel images ─────────────────────────────────────────────────────────
+# â”€â”€ carousel images â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 _MIME = {".jpg": "image/jpeg", ".jpeg": "image/jpeg",
          ".png": "image/png", ".webp": "image/webp", ".avif": "image/avif"}
 
@@ -76,7 +76,7 @@ CAROUSEL_HTML = f"""
   }}
   .tpc-btn:hover {{ background: rgba(255,255,255,.5); }}
   .tpc-prev {{ left: 10px; }} .tpc-next {{ right: 10px; }}
-  /* 30 % translucent gradient overlay — title lives inside it */
+  /* 30 % translucent gradient overlay â€” title lives inside it */
   .tpc-title {{
     position: absolute; bottom: 0; left: 0; right: 0;
     height: 30%;
@@ -114,14 +114,14 @@ CAROUSEL_HTML = f"""
   <button class="tpc-btn tpc-prev" id="tpc-prev-btn">&#8249;</button>
   <button class="tpc-btn tpc-next" id="tpc-next-btn">&#8250;</button>
   <div class="tpc-title">
-    <span class="tpc-title-text">✈&nbsp; Travel Planner</span>
+    <span class="tpc-title-text">âœˆ&nbsp; Travel Planner</span>
   </div>
   <div class="tpc-dots" id="tpc-dots">{_slide_dots}</div>
 </div>
 
 """
 
-# ── carousel JS (passed via gr.Blocks js= so it always executes) ─────────────
+# â”€â”€ carousel JS (passed via gr.Blocks js= so it always executes) â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 CAROUSEL_JS = f"""
 function() {{
   var cur = 0, total = {len(_slides)}, timer = null;
@@ -150,23 +150,162 @@ function() {{
     upd(track);
     return true;
   }}
+  function syncTextbox(elemId, value) {{
+    var wrapper = document.getElementById(elemId);
+    if (!wrapper) return;
+    var input = wrapper.querySelector('textarea, input');
+    if (!input) return;
+    var proto = input.tagName === 'TEXTAREA'
+      ? window.HTMLTextAreaElement.prototype
+      : window.HTMLInputElement.prototype;
+    var descriptor = Object.getOwnPropertyDescriptor(proto, 'value');
+    if (descriptor && descriptor.set) {{
+      descriptor.set.call(input, value);
+    }} else {{
+      input.value = value;
+    }}
+    input.dispatchEvent(new Event('input', {{ bubbles: true }}));
+    input.dispatchEvent(new Event('change', {{ bubbles: true }}));
+  }}
+  function resetUploadState() {{
+    var preview = document.getElementById('tpc-client-upload-preview');
+    var empty = document.getElementById('tpc-client-upload-empty');
+    var note = document.getElementById('tpc-client-upload-note');
+    if (preview) {{
+      preview.removeAttribute('src');
+      preview.style.display = 'none';
+    }}
+    if (empty) empty.style.display = 'flex';
+    if (note) note.textContent = 'No image selected yet.';
+    syncTextbox('tpc-image-data', '');
+  }}
+  function prepareImageData(file, onDone, onError) {{
+    var reader = new FileReader();
+    reader.onload = function(evt) {{
+      var img = new Image();
+      img.onload = function() {{
+        var maxSide = 1600;
+        var width = img.naturalWidth || img.width;
+        var height = img.naturalHeight || img.height;
+        if (!width || !height) {{
+          onError('Could not read that image.');
+          return;
+        }}
+        if (width > maxSide || height > maxSide) {{
+          var scale = Math.min(maxSide / width, maxSide / height);
+          width = Math.max(1, Math.round(width * scale));
+          height = Math.max(1, Math.round(height * scale));
+        }}
+        var canvas = document.createElement('canvas');
+        canvas.width = width;
+        canvas.height = height;
+        var ctx = canvas.getContext('2d');
+        if (!ctx) {{
+          onError('Canvas is unavailable in this browser.');
+          return;
+        }}
+        ctx.drawImage(img, 0, 0, width, height);
+        onDone(canvas.toDataURL('image/jpeg', 0.88));
+      }};
+      img.onerror = function() {{ onError('That file is not a supported image.'); }};
+      img.src = evt.target && evt.target.result ? evt.target.result : '';
+    }};
+    reader.onerror = function() {{ onError('Could not read that file.'); }};
+    reader.readAsDataURL(file);
+  }}
+  function initUploader() {{
+    var input = document.getElementById('tpc-file-input');
+    if (!input) return false;
+    if (input.dataset.bound === '1') return true;
+    input.dataset.bound = '1';
+
+    var preview = document.getElementById('tpc-client-upload-preview');
+    var empty = document.getElementById('tpc-client-upload-empty');
+    var note = document.getElementById('tpc-client-upload-note');
+
+    resetUploadState();
+
+    input.addEventListener('change', function() {{
+      var file = input.files && input.files[0];
+      if (!file) {{
+        resetUploadState();
+        return;
+      }}
+      if (note) note.textContent = 'Preparing ' + file.name + '...';
+      prepareImageData(file, function(dataUrl) {{
+        syncTextbox('tpc-image-data', dataUrl);
+        if (preview) {{
+          preview.src = dataUrl;
+          preview.style.display = 'block';
+        }}
+        if (empty) empty.style.display = 'none';
+        if (note) note.textContent = file.name + ' is ready for detection.';
+      }}, function(message) {{
+        resetUploadState();
+        if (note) note.textContent = message;
+      }});
+    }});
+    return true;
+  }}
   if (!init()) {{
     var mo = new MutationObserver(function() {{
-      if (init()) mo.disconnect();
+      var ready = init();
+      var uploadReady = initUploader();
+      if (ready && uploadReady) mo.disconnect();
     }});
     mo.observe(document.documentElement, {{ childList: true, subtree: true }});
   }}
+  initUploader();
 }}
 """
 
-# ── custom CSS ───────────────────────────────────────────────────────────────
+UPLOAD_HTML = """
+<div class="tpc-client-upload-shell">
+  <label class="tpc-client-upload-box" for="tpc-file-input">
+    <input id="tpc-file-input" class="tpc-client-upload-input" type="file" accept="image/*" />
+    <img id="tpc-client-upload-preview" class="tpc-client-upload-preview" alt="Selected place preview" />
+    <div id="tpc-client-upload-empty" class="tpc-client-upload-empty">
+      <span class="tpc-client-upload-badge">Upload Photo</span>
+      <strong>Upload an Image</strong>
+      <p>JPG, PNG, WEBP and GIF work well. The image is compressed in your browser before it is sent.</p>
+    </div>
+  </label>
+  <p id="tpc-client-upload-note" class="tpc-client-upload-note">No image selected yet.</p>
+</div>
+"""
+
+# â”€â”€ custom CSS â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 CSS = """
+
+:root,
+html,
+body,
+.gradio-container,
+.gradio-container > .main,
+main.fillable {
+  --body-background-fill: #f4faff !important;
+  --body-background-fill-dark: #f4faff !important;
+  --background-fill-primary: #ffffff !important;
+  --background-fill-secondary: #f8fbff !important;
+  --block-background-fill: #ffffff !important;
+  --body-text-color: #0f172a !important;
+  --body-text-color-subdued: #475569 !important;
+  background: linear-gradient(180deg, #f4faff 0%, #edf6ff 52%, #ffffff 100%) !important;
+  color: #0f172a !important;
+  color-scheme: light !important;
+}
+
+html,
+body {
+  margin: 0 !important;
+  min-height: 100% !important;
+}
 
 main.fillable {
   padding: 0 !important;
 }
 
-/* ── remove padding from the Gradio main wrappers called out in DevTools ── */
+/* â”€â”€ remove padding from the Gradio main wrappers called out in DevTools â”€â”€ */
 .tpc-main,
 .tpc-main > div,
 .padding.svelte-phx28p {
@@ -174,7 +313,7 @@ main.fillable {
   margin: 0 !important;
 }
 
-/* ── carousel block: edge-to-edge, no border/shadow, keep overflow visible for overlay ── */
+/* â”€â”€ carousel block: edge-to-edge, no border/shadow, keep overflow visible for overlay â”€â”€ */
 #tpc-carousel-block,
 #tpc-carousel-block > div,
 #tpc-carousel-block .block,
@@ -185,20 +324,101 @@ main.fillable {
   overflow: visible !important;
 }
 
-/* ── hide floating badge/label on the upload accordion ── */
+/* â”€â”€ hide floating badge/label on the upload accordion â”€â”€ */
 #tpc-upload-acc .label-wrap .icon { display: none !important; }
 
-/* ── hide only the drag/drop placeholder text inside the image input ── */
-#tpc-image-input .upload-container span,
-#tpc-image-input .upload-container p,
-#tpc-image-input .upload-text {
+/* â”€â”€ client-side image upload card â”€â”€ */
+#tpc-image-input {
+  width: 100% !important;
+}
+.tpc-client-upload-shell {
+  width: 100%;
+}
+.tpc-client-upload-box {
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 190px;
+  border-radius: 18px;
+  border: 1.5px dashed #93c5fd;
+  background: linear-gradient(180deg, #f8fbff 0%, #e0f2fe 100%);
+  overflow: hidden;
+  cursor: pointer;
+  transition: border-color .2s, box-shadow .2s, transform .15s;
+}
+.tpc-client-upload-box:hover {
+  border-color: #6366f1;
+  box-shadow: 0 8px 24px rgba(99,102,241,.18);
+  transform: translateY(-1px);
+}
+.tpc-client-upload-input {
+  position: absolute;
+  inset: 0;
+  opacity: 0;
+  cursor: pointer;
+}
+.tpc-client-upload-empty {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  width: 100%;
+  padding: 22px;
+  text-align: center;
+  color: #334155;
+}
+.tpc-client-upload-empty strong {
+  display: block;
+  width: 100%;
+  color: #0f172a;
+  font-size: .98rem;
+  text-align: center;
+}
+.tpc-client-upload-empty p {
+  margin: 0;
+  width: 100%;
+  font-size: .83rem;
+  line-height: 1.45;
+  color: #64748b;
+  text-align: center;
+}
+.tpc-client-upload-badge {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 5px 11px;
+  border-radius: 999px;
+  background: rgba(99,102,241,.12);
+  color: #4338ca;
+  font-size: .72rem;
+  font-weight: 700;
+  letter-spacing: .04em;
+  text-transform: uppercase;
+}
+.tpc-client-upload-preview {
+  display: none;
+  width: 100%;
+  height: 190px;
+  object-fit: cover;
+}
+.tpc-client-upload-note {
+  margin: 10px 4px 0;
+  color: #64748b;
+  font-size: .82rem;
+  line-height: 1.4;
+  text-align: center;
+}
+
+#tpc-image-data {
   display: none !important;
 }
 
-/* ── search column: full-width stacked with block padding ── */
+/* â”€â”€ search column: full-width stacked with block padding â”€â”€ */
 #tpc-search-col { gap: 10px !important; width: 100% !important; padding: 16px !important; }
 
-/* ── generated data tabs: add inner spacing to tab bodies ── */
+/* â”€â”€ generated data tabs: add inner spacing to tab bodies â”€â”€ */
 #tpc-location-tabs .tabitem,
 #tpc-location-tabs .tab-item,
 #tpc-location-tabs .tabs > div:last-child,
@@ -208,13 +428,25 @@ main.fillable {
   padding: 14px 16px 20px !important;
 }
 
-/* ── pill search input ── */
+/* â”€â”€ pill search input â”€â”€ */
 #tpc-search-input {
   width: 100% !important;
+  border-radius: 9999px !important;
+  overflow: hidden !important;
+  background: #ffffff !important;
+}
+#tpc-search-input > div,
+#tpc-search-input .wrap,
+#tpc-search-input .scroll-hide,
+#tpc-search-input label {
+  border-radius: 9999px !important;
+  overflow: hidden !important;
+  background: #ffffff !important;
 }
 #tpc-search-input textarea,
 #tpc-search-input input {
   border-radius: 9999px !important;
+  background: #ffffff !important;
   padding: 0 22px !important;
   height: 48px !important;
   min-height: 48px !important;
@@ -236,7 +468,7 @@ main.fillable {
   outline: none !important;
 }
 
-/* ── full-width capsule buttons ── */
+/* â”€â”€ full-width capsule buttons â”€â”€ */
 #tpc-search-btn, #tpc-img-btn {
   width: 100% !important;
   border-radius: 9999px !important;
@@ -270,7 +502,7 @@ main.fillable {
   transform: translateY(-1px) !important;
 }
 
-/* ── location summary card — sky-blue travel theme ── */
+/* â”€â”€ location summary card â€” sky-blue travel theme â”€â”€ */
 .tpc-summary {
   background: linear-gradient(135deg, #0ea5e9 0%, #0284c7 55%, #075985 100%);
   color: #fff;
@@ -349,7 +581,7 @@ main.fillable {
   opacity: .92;
 }
 
-/* ── place card ── */
+/* â”€â”€ place card â”€â”€ */
 .tpc-card {
   background: #fff;
   border: 1px solid #e8ecff;
@@ -376,7 +608,7 @@ main.fillable {
 """
 
 
-# ── helpers ──────────────────────────────────────────────────────────────────
+# â”€â”€ helpers â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 def _cards(items: list[dict], icon: str) -> str:
     if not items:
         return f'<p class="tpc-empty">No {icon} results found nearby.</p>'
@@ -388,14 +620,14 @@ def _cards(items: list[dict], icon: str) -> str:
         hours   = item.get("opening_hours", "")
         website = item.get("website", "")
         meta = ""
-        if phone:   meta += f'<span class="tpc-badge">📞 {phone}</span>'
-        if hours:   meta += f'<span class="tpc-badge">🕐 {hours}</span>'
-        if website: meta += f'<a class="tpc-badge" href="{website}" target="_blank">🌐 Website</a>'
+        if phone:   meta += f'<span class="tpc-badge">ðŸ“ž {phone}</span>'
+        if hours:   meta += f'<span class="tpc-badge">ðŸ• {hours}</span>'
+        if website: meta += f'<a class="tpc-badge" href="{website}" target="_blank">ðŸŒ Website</a>'
         meta_html = f'<div class="tpc-card-meta">{meta}</div>' if meta else ""
         out.append(
             f'<div class="tpc-card">'
             f'<p class="tpc-card-name">{icon} {name}</p>'
-            f'<p class="tpc-card-addr">📍 {address}</p>'
+            f'<p class="tpc-card-addr">ðŸ“ {address}</p>'
             f'{meta_html}</div>'
         )
     return "\n".join(out)
@@ -520,7 +752,7 @@ def _location_panel_html(
         action_html = (
             '<div class="tpc-card-meta">'
             f'<a class="tpc-badge" href="{escape(action_url, quote=True)}" target="_blank">'
-            f'🔗 {escape(action_label)}</a>'
+            f'ðŸ”— {escape(action_label)}</a>'
             '</div>'
         )
 
@@ -562,11 +794,11 @@ def _location_details_html(place: dict, nearby_summary: str) -> str:
 
     return (
         f'<div class="tpc-summary">'
-        f'📍 <strong>{escape(str(place.get("name", "N/A")))}</strong>'
-        f'&ensp;·&ensp;{escape(str(place.get("city", "N/A")))}, '
+        f'ðŸ“ <strong>{escape(str(place.get("name", "N/A")))}</strong>'
+        f'&ensp;Â·&ensp;{escape(str(place.get("city", "N/A")))}, '
         f'{escape(str(place.get("state", "N/A")))}, {escape(str(place.get("country", "N/A")))}<br>'
         f'<small style="opacity:.85">{escape(str(place.get("formatted_address", "N/A")))}'
-        f'&ensp;·&ensp;{escape(str(place.get("place_type", "N/A")))}</small>'
+        f'&ensp;Â·&ensp;{escape(str(place.get("place_type", "N/A")))}</small>'
         f'<div class="tpc-location-facts">{facts_html}</div>'
         f'<div class="tpc-location-summary-line">{escape(nearby_summary)}</div>'
         f'</div>'
@@ -580,7 +812,7 @@ def _explore(place_name: str) -> tuple:
   try:
     data = pf.explore_place(place_name, radius_meters=5000, limit_per_category=8)
   except Exception as exc:
-    err = f'<p style="color:#ef4444;padding:12px">⚠️ {exc}</p>'
+    err = f'<p style="color:#ef4444;padding:12px">âš ï¸ {exc}</p>'
 
   if data is None:
     return (
@@ -623,8 +855,8 @@ def _explore(place_name: str) -> tuple:
     action_label="Open in Google Maps",
   )
 
-  icons = {"attractions": "🏛️", "museums": "🖼️",
-       "restaurants": "🍽️", "hotels": "🏨", "parks": "🌿"}
+  icons = {"attractions": "ðŸ›ï¸", "museums": "ðŸ–¼ï¸",
+       "restaurants": "ðŸ½ï¸", "hotels": "ðŸ¨", "parks": "ðŸŒ¿"}
   tabs = tuple(_cards(data.get(k, []), v) for k, v in icons.items())
   has_nearby_results = any(bool(data.get(k)) for k in icons)
   return (
@@ -636,7 +868,7 @@ def _explore(place_name: str) -> tuple:
   ) + tabs
 
 
-# ── event handlers ────────────────────────────────────────────────────────────
+# â”€â”€ event handlers â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 BLANK = (
   gr.update(visible=False),
   gr.update(visible=False),
@@ -657,25 +889,25 @@ def on_text_search(place: str):
     return _explore(place.strip())
 
 
-def on_image_search(image_path):
-    if not image_path:
-        return ("",) + BLANK
-    detected = ir.recognize_place_from_image(image_path)
-    return (detected,) + _explore(detected)
+def on_image_search(image_source: str):
+  if not image_source or not str(image_source).strip():
+    return ("",) + BLANK
+  detected = ir.recognize_place_from_image(str(image_source).strip())
+  return (detected,) + _explore(detected)
 
 
-# ── UI ────────────────────────────────────────────────────────────────────────
+# â”€â”€ UI â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 _TABS = [
-    ("🏛️ Attractions",  "attractions"),
-    ("🖼️ Museums",      "museums"),
-    ("🍽️ Restaurants",  "restaurants"),
-    ("🏨 Hotels",       "hotels"),
-    ("🌿 Parks",        "parks"),
+    ("ðŸ›ï¸ Attractions",  "attractions"),
+    ("ðŸ–¼ï¸ Museums",      "museums"),
+    ("ðŸ½ï¸ Restaurants",  "restaurants"),
+    ("ðŸ¨ Hotels",       "hotels"),
+    ("ðŸŒ¿ Parks",        "parks"),
 ]
 
 with gr.Blocks(css=CSS, js=CAROUSEL_JS, theme=gr.themes.Soft(), title="Travel Planner") as demo:
 
-    # ── carousel ──
+    # â”€â”€ carousel â”€â”€
   gr.HTML(
     CAROUSEL_HTML,
     elem_id="tpc-carousel-block",
@@ -685,13 +917,13 @@ with gr.Blocks(css=CSS, js=CAROUSEL_JS, theme=gr.themes.Soft(), title="Travel Pl
   with gr.Column(elem_classes=["tpc-component", "tpc-main"]):
     with gr.Column(elem_classes=["tpc-component", "tpc-content"]):
 
-      # ── text search: input above button (column) ──
+      # â”€â”€ text search: input above button (column) â”€â”€
       with gr.Column(
         elem_id="tpc-search-col",
         elem_classes=["tpc-component", "tpc-search-col"],
       ):
         txt = gr.Textbox(
-          placeholder="🔍  Paris, Mumbai, Taj Mahal, Goa…",
+          placeholder="ðŸ”  Paris, Mumbai, Taj Mahal, Goaâ€¦",
           label="Search by Place Name",
           show_label=False,
           container=False,
@@ -699,25 +931,28 @@ with gr.Blocks(css=CSS, js=CAROUSEL_JS, theme=gr.themes.Soft(), title="Travel Pl
           elem_classes=["tpc-component", "tpc-search-input"],
         )
         search_btn = gr.Button(
-          "Explore ✈", variant="primary",
+          "Explore âœˆ", variant="primary",
           elem_id="tpc-search-btn",
           elem_classes=["tpc-component", "tpc-search-btn"],
         )
 
-      # ── image upload ──
+      # â”€â”€ image upload â”€â”€
       with gr.Accordion(
-        "📷  Detect place from a photo",
+        "ðŸ“·  Detect place from a photo",
         open=False,
         elem_id="tpc-upload-acc",
         elem_classes=["tpc-component", "tpc-upload-acc"],
       ):
         with gr.Row(elem_classes=["tpc-component", "tpc-upload-row"]):
-          img_in = gr.Image(
-            type="filepath",
-            label="",
+          img_data = gr.Textbox(
+            value="",
+            visible=False,
             show_label=False,
-            height=190,
-            scale=3,
+            elem_id="tpc-image-data",
+            elem_classes=["tpc-component", "tpc-image-data"],
+          )
+          gr.HTML(
+            UPLOAD_HTML,
             elem_id="tpc-image-input",
             elem_classes=["tpc-component", "tpc-image-input"],
           )
@@ -738,7 +973,7 @@ with gr.Blocks(css=CSS, js=CAROUSEL_JS, theme=gr.themes.Soft(), title="Travel Pl
               elem_classes=["tpc-component", "tpc-img-btn"],
             )
 
-      # ── current location tabs ──
+      # â”€â”€ current location tabs â”€â”€
       with gr.Column(
         visible=False,
         elem_classes=["tpc-component", "tpc-location-section"],
@@ -747,20 +982,20 @@ with gr.Blocks(css=CSS, js=CAROUSEL_JS, theme=gr.themes.Soft(), title="Travel Pl
           elem_id="tpc-location-tabs",
           elem_classes=["tpc-component", "tpc-location-tabs"],
         ):
-          with gr.Tab("🖼️ Image", elem_classes=["tpc-component", "tpc-location-tab"]):
+          with gr.Tab("ðŸ–¼ï¸ Image", elem_classes=["tpc-component", "tpc-location-tab"]):
             location_image_out = gr.HTML(
               elem_classes=["tpc-component", "tpc-location-output"]
             )
-          with gr.Tab("📍 Details", elem_classes=["tpc-component", "tpc-location-tab"]):
+          with gr.Tab("ðŸ“ Details", elem_classes=["tpc-component", "tpc-location-tab"]):
             location_details_out = gr.HTML(
               elem_classes=["tpc-component", "tpc-location-output"]
             )
-          with gr.Tab("🗺️ Map", elem_classes=["tpc-component", "tpc-location-tab"]):
+          with gr.Tab("ðŸ—ºï¸ Map", elem_classes=["tpc-component", "tpc-location-tab"]):
             location_map_out = gr.HTML(
               elem_classes=["tpc-component", "tpc-location-output"]
             )
 
-      # ── tabs ──
+      # â”€â”€ tabs â”€â”€
       tab_outputs = []
       with gr.Column(
         visible=False,
@@ -776,7 +1011,7 @@ with gr.Blocks(css=CSS, js=CAROUSEL_JS, theme=gr.themes.Soft(), title="Travel Pl
                 gr.HTML(elem_classes=["tpc-component", "tpc-tab-output"])
               )
 
-    # ── wire events ──
+    # â”€â”€ wire events â”€â”€
     text_outs = [
       location_section,
       results_section,
@@ -785,13 +1020,14 @@ with gr.Blocks(css=CSS, js=CAROUSEL_JS, theme=gr.themes.Soft(), title="Travel Pl
       location_map_out,
     ] + tab_outputs
 
-    search_btn.click(fn=on_text_search, inputs=txt, outputs=text_outs)
-    txt.submit(fn=on_text_search, inputs=txt, outputs=text_outs)
+    search_btn.click(fn=on_text_search, inputs=txt, outputs=text_outs, queue=False)
+    txt.submit(fn=on_text_search, inputs=txt, outputs=text_outs, queue=False)
 
     img_btn.click(
         fn=on_image_search,
-        inputs=img_in,
+      inputs=img_data,
         outputs=[detected] + text_outs,
+      queue=False,
     )
 
 if __name__ == "__main__":
