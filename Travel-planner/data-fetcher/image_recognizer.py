@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import ast
 import base64
 import os
 from pathlib import Path
@@ -73,9 +74,29 @@ def _local_file_to_base64(image_path: str) -> tuple[str, str]:
         return base64.b64encode(fh.read()).decode("utf-8"), media_type
 
 
-def _image_block_from_source(image_source: str) -> dict[str, dict[str, str] | str]:
+def _normalized_image_source(image_source: str | dict[str, object]) -> str:
+    """Coerce Gradio file payloads, URLs, data URIs, and local paths to one string."""
+    if isinstance(image_source, dict):
+        return str(image_source.get("path") or image_source.get("url") or "").strip()
+
+    source = str(image_source or "").strip()
+    if not source:
+        return ""
+
+    if source.startswith("{") and source.endswith("}"):
+        try:
+            payload = ast.literal_eval(source)
+        except (SyntaxError, ValueError):
+            payload = None
+        if isinstance(payload, dict):
+            return str(payload.get("path") or payload.get("url") or source).strip()
+
+    return source
+
+
+def _image_block_from_source(image_source: str | dict[str, object]) -> dict[str, dict[str, str] | str]:
     """Build the image content block for URLs, data URIs, or local files."""
-    source = image_source.strip()
+    source = _normalized_image_source(image_source)
     if source.startswith("data:"):
         return {"type": "image_url", "image_url": {"url": source}}
     if source.startswith(("http://", "https://")):
@@ -89,7 +110,7 @@ def _image_block_from_source(image_source: str) -> dict[str, dict[str, str] | st
 
 
 def recognize_place_from_image(
-    image_source: str,
+    image_source: str | dict[str, object],
     *,
     model: str = VISION_MODEL,
 ) -> str:

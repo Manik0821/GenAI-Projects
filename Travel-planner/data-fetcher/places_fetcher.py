@@ -17,6 +17,8 @@ load_dotenv(dotenv_path=ENV_PATH)
 
 GEOAPIFY_BASE_URL = "https://api.geoapify.com/v2/places"
 GEOAPIF_GEOCODE_URL = "https://api.geoapify.com/v1/geocode/search"
+_CITY_CATEGORY = "populated_place.city"
+_ADMIN_PLACE_TYPES = {"state", "country"}
 
 _HEADERS = CaseInsensitiveDict({"Accept": "application/json"})
 
@@ -29,6 +31,17 @@ _SSL_VERIFY: bool | str = (
 
 if not _SSL_VERIFY:
     urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
+
+
+def _normalize_place_type(place_type: object) -> str:
+    return str(place_type or "").strip().lower()
+
+
+def _feature_bbox(feature: dict) -> tuple[float, float, float, float] | None:
+    bbox = feature.get("bbox") or feature.get("properties", {}).get("bbox")
+    if not isinstance(bbox, (list, tuple)) or len(bbox) != 4:
+        return None
+    return tuple(float(value) for value in bbox)
 
 
 def _get_api_key() -> str:
@@ -206,8 +219,9 @@ def geocode_place_details(place_name: str) -> dict:
     features = resp.json().get("features", [])
     if not features:
         raise ValueError(f"No geocoding results found for '{place_name}'")
-    props = features[0].get("properties", {})
-    coords = features[0]["geometry"]["coordinates"]
+    feature = features[0]
+    props = feature.get("properties", {})
+    coords = feature["geometry"]["coordinates"]
     return {
         "name": props.get("name") or props.get("city") or props.get("county") or place_name,
         "formatted_address": props.get("formatted", "N/A"),
@@ -221,7 +235,125 @@ def geocode_place_details(place_name: str) -> dict:
         "lon": float(coords[0]),
         "place_id": props.get("place_id", ""),
         "place_type": props.get("result_type", "N/A"),
+        "bbox": _feature_bbox(feature),
     }
+
+
+def fetch_cities_for_place(place_info: dict, *, limit: int = 8) -> list[dict]:
+    """Fetch representative cities for broad administrative areas."""
+    place_type = _normalize_place_type(place_info.get("place_type"))
+    bbox = place_info.get("bbox")
+    if place_type not in _ADMIN_PLACE_TYPES or not bbox:
+        return []
+
+    raw_limit = min(max(limit * 5, 25), 100)
+    raw = fetch_places(
+        categories=_CITY_CATEGORY,
+        bbox=bbox,
+        limit=raw_limit,
+        conditions="named",
+    )
+
+    target_country = str(place_info.get("country", "")).strip().lower()
+    target_state = str(place_info.get("state", "")).strip().lower()
+    cities: list[dict] = []
+    seen: set[str] = set()
+
+    for feature in raw.get("features", []):
+        city = extract_place_details(feature)
+        city_name = str(city.get("name", "")).strip()
+        city_country = str(city.get("country", "")).strip().lower()
+        city_state = str(city.get("state", "")).strip().lower()
+
+        if not city_name:
+            continue
+        if target_country and city_country and city_country != target_country:
+            continue
+        if place_type == "state" and target_state and city_state and city_state != target_state:
+            continue
+
+        dedupe_key = city_name.lower()
+        if dedupe_key in seen:
+            continue
+        seen.add(dedupe_key)
+        cities.append(city)
+        if len(cities) >= limit:
+            break
+
+    return cities
+
+
+def _matches_place_scope(item: dict, place_info: dict, *, place_type: str) -> bool:
+    target_country = str(place_info.get("country", "")).strip().lower()
+    target_state = str(place_info.get("state", "")).strip().lower()
+    item_country = str(item.get("country", "")).strip().lower()
+    item_state = str(item.get("state", "")).strip().lower()
+
+    if target_country and item_country and item_country != target_country:
+        return False
+    if place_type == "state" and target_state and item_state and item_state != target_state:
+        return False
+    return True
+
+
+def _place_dedupe_key(item: dict) -> str:
+    place_id = str(item.get("place_id", "")).strip()
+    if place_id:
+        return place_id
+
+    name = str(item.get("name", "")).strip().lower()
+    address = str(item.get("address", "")).strip().lower()
+    return f"{name}|{address}"
+
+
+def _aggregate_category_results_from_cities(
+    cities: list[dict],
+    *,
+    place_info: dict,
+    categories: str,
+    radius_meters: int,
+    limit: int,
+) -> list[dict]:
+    """Fetch category results around each city and merge them into one list."""
+    if not cities:
+        return []
+
+    place_type = _normalize_place_type(place_info.get("place_type"))
+    per_city_limit = max(1, (limit + len(cities) - 1) // len(cities))
+    merged: list[dict] = []
+    seen: set[str] = set()
+
+    for city in cities:
+        lat = city.get("lat")
+        lon = city.get("lon")
+        if lat is None or lon is None:
+            continue
+
+        try:
+            raw = fetch_places_by_radius(
+                categories=categories,
+                lat=float(lat),
+                lon=float(lon),
+                radius_meters=radius_meters,
+                limit=per_city_limit,
+                conditions="named",
+            )
+        except Exception:
+            continue
+
+        for feature in raw.get("features", []):
+            item = extract_place_details(feature)
+            item.setdefault("search_city", city.get("name", "N/A"))
+            if not _matches_place_scope(item, place_info, place_type=place_type):
+                continue
+
+            dedupe_key = _place_dedupe_key(item)
+            if dedupe_key in seen:
+                continue
+            seen.add(dedupe_key)
+            merged.append(item)
+
+    return merged[:limit]
 
 
 # Categories fetched by explore_place, in display order
@@ -262,25 +394,47 @@ def explore_place(
     """
     place_info = geocode_place_details(place_name)
     lat, lon = place_info["lat"], place_info["lon"]
+    place_type = _normalize_place_type(place_info.get("place_type"))
 
-    result: dict = {"place": place_info}
+    result: dict = {"place": place_info, "cities": []}
     counts: list[str] = []
+
+    if place_type in _ADMIN_PLACE_TYPES:
+        try:
+            result["cities"] = fetch_cities_for_place(
+                place_info,
+                limit=limit_per_category,
+            )
+        except Exception:
+            result["cities"] = []
 
     for key, category_str in _EXPLORE_CATEGORIES:
         try:
-            raw = fetch_places_by_radius(
-                categories=category_str,
-                lat=lat,
-                lon=lon,
-                radius_meters=radius_meters,
-                limit=limit_per_category,
-                conditions="named",
-            )
-            items = [extract_place_details(f) for f in raw.get("features", [])]
+            if result["cities"]:
+                items = _aggregate_category_results_from_cities(
+                    result["cities"],
+                    place_info=place_info,
+                    categories=category_str,
+                    radius_meters=radius_meters,
+                    limit=limit_per_category,
+                )
+            else:
+                raw = fetch_places_by_radius(
+                    categories=category_str,
+                    lat=lat,
+                    lon=lon,
+                    radius_meters=radius_meters,
+                    limit=limit_per_category,
+                    conditions="named",
+                )
+                items = [extract_place_details(f) for f in raw.get("features", [])]
         except Exception:
             items = []
         result[key] = items
         counts.append(f"{len(items)} {key}")
+
+    if place_type in _ADMIN_PLACE_TYPES:
+        counts.append(f"{len(result['cities'])} cities")
 
     result["summary"] = (
         f"{place_info['name']} ({place_info['country']}) | " + ", ".join(counts)
@@ -298,11 +452,14 @@ def extract_place_details(feature: dict) -> dict:
         "categories": props.get("categories", []),
         "address": props.get("formatted", "N/A"),
         "city": props.get("city", "N/A"),
+        "state": props.get("state", "N/A"),
+        "county": props.get("county", "N/A"),
         "country": props.get("country", "N/A"),
         "postcode": props.get("postcode", "N/A"),
         "lon": coordinates[0],
         "lat": coordinates[1],
         "place_id": props.get("place_id", ""),
+        "place_type": props.get("result_type", ""),
         "website": props.get("website", ""),
         "phone": props.get("phone", ""),
         "opening_hours": props.get("opening_hours", ""),
