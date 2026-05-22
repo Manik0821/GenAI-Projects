@@ -27,5 +27,6 @@ app = gr.mount_gradio_app(
     fastapi_app,
     travel_app.demo,
     path="/",
+    allowed_paths=[str(TRAVEL_APP_PATH.parent)],
     show_error=True,
 )

@@ -5,12 +5,14 @@ Carousel -> Search / Image Upload -> Tabbed place details (mobile-first).
 
 from __future__ import annotations
 
-import base64
+import functools
 import hashlib
 import importlib.util
 import os
+import re
 from html import escape
 from pathlib import Path
+from urllib.parse import quote
 
 import gradio as gr
 import requests
@@ -30,6 +32,21 @@ pf = _load("places_fetcher", "data-fetcher/places_fetcher.py")
 ir = _load("image_recognizer", "data-fetcher/image_recognizer.py")
 
 _WIKIPEDIA_HEADERS = {"User-Agent": "TravelPlanner/1.0 (local development)"}
+
+_NATURAL_LANGUAGE_QUERY_RE = re.compile(
+  r"^(?:where(?:\s+exactly)?\s+is|where's|what\s+is|which\s+place\s+is|"
+  r"tell\s+me\s+about|show\s+me|find|locate|search\s+for|take\s+me\s+to|"
+  r"directions\s+to|how\s+do\s+i\s+get\s+to|"
+  r"i\s+(?:want|would\s+like)\s+to\s+(?:visit|see|go\s+to|explore))\b",
+  re.IGNORECASE,
+)
+_QUERY_PREFIX_RE = re.compile(
+  r"^(?:where(?:\s+exactly)?\s+is|where's|what\s+is|which\s+place\s+is|"
+  r"tell\s+me\s+about|show\s+me|find|locate|search\s+for|take\s+me\s+to|"
+  r"directions\s+to|how\s+do\s+i\s+get\s+to|"
+  r"i\s+(?:want|would\s+like)\s+to\s+(?:visit|see|go\s+to|explore))\s+",
+  re.IGNORECASE,
+)
 
 ICON_PLANE = "\u2708"
 ICON_SEARCH = "\U0001F50D"
@@ -53,22 +70,96 @@ RECENT_SEARCH_LIMIT = 8
 
 # â”€â”€ carousel images â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 _MIME = {".jpg": "image/jpeg", ".jpeg": "image/jpeg",
-         ".png": "image/png", ".webp": "image/webp", ".avif": "image/avif"}
+     ".png": "image/png", ".webp": "image/webp", ".avif": "image/avif"}
 
 
-def _b64(name: str) -> tuple[str, str]:
-    """Return (data-uri, mime) or ('', '') if file missing."""
-    for ext in (".jpg", ".jpeg", ".png", ".webp", ".avif"):
-        p = BASE / f"{name}{ext}"
-        if p.exists():
-            mime = _MIME[ext]
-            b64 = base64.b64encode(p.read_bytes()).decode()
-            return f"data:{mime};base64,{b64}", mime
-    return "", ""
+def _static_file_url(path: Path) -> str:
+  return "/gradio_api/file=" + quote(path.resolve().as_posix(), safe="/")
 
 
-_slides = [s for s in [_b64("travel-1"), _b64("travel-2"), _b64("travel-3")] if s[0]]
-_slide_imgs = "".join(f'<img src="{uri}" alt="travel photo" />' for uri, _ in _slides)
+def _hero_asset(name: str) -> str:
+  for ext in (".jpg", ".jpeg", ".png", ".webp", ".avif"):
+    p = BASE / f"{name}{ext}"
+    if p.exists():
+      return _static_file_url(p)
+  return ""
+
+
+def _normalize_search_text(value: str) -> str:
+  return re.sub(r"\s+", " ", str(value or "")).strip()
+
+
+def _needs_llm_query_resolution(query: str) -> bool:
+  normalized = _normalize_search_text(query)
+  if not normalized:
+    return False
+  return "?" in normalized or bool(_NATURAL_LANGUAGE_QUERY_RE.match(normalized))
+
+
+def _heuristic_place_query(query: str) -> str:
+  candidate = _normalize_search_text(query)
+  if not candidate:
+    return ""
+  candidate = candidate.strip(" \"'")
+  candidate = re.sub(r"[?!.,]+$", "", candidate).strip()
+  candidate = _QUERY_PREFIX_RE.sub("", candidate).strip(" ,")
+  candidate = re.sub(r"^(?:the\s+location\s+of|location\s+of)\s+", "", candidate, flags=re.IGNORECASE)
+  candidate = re.sub(r"\s+(?:please|for\s+me)$", "", candidate, flags=re.IGNORECASE)
+  return candidate or _normalize_search_text(query)
+
+
+@functools.lru_cache(maxsize=1)
+def _llm_query_module():
+  return _load("ai_model", "Model-setup/ai_model.py")
+
+
+@functools.lru_cache(maxsize=128)
+def _resolve_place_query(query: str) -> str:
+  normalized = _normalize_search_text(query)
+  if not normalized:
+    return ""
+
+  fallback = _heuristic_place_query(normalized)
+  if not _needs_llm_query_resolution(normalized):
+    return fallback
+
+  prompt = (
+    "Extract the single place the user wants to search for in a travel app. "
+    "Return ONLY the canonical place name. Include city, state, or country only when it helps disambiguate. "
+    "Do not answer the question. Do not add bullets, labels, or explanation. "
+    "If there is no identifiable place, reply UNKNOWN.\n\n"
+    f"User query: {normalized}\n"
+    f"Fallback guess: {fallback or 'UNKNOWN'}"
+  )
+
+  try:
+    response = _llm_query_module().ask_with_failover(
+      prompt,
+      system_prompt="You extract place names from travel search queries.",
+      temperature=0.0,
+      max_tokens=48,
+    )
+  except Exception:
+    return fallback
+
+  candidate = _normalize_search_text(response.splitlines()[0] if response else "")
+  candidate = candidate.strip(" \"'")
+  candidate = re.sub(r"^(?:place|location)\s*:\s*", "", candidate, flags=re.IGNORECASE)
+  candidate = re.sub(r"[?!.,]+$", "", candidate).strip()
+  if not candidate or candidate.lower() == "unknown":
+    return fallback
+  return candidate
+
+
+_slides = [s for s in [_hero_asset("travel-1"), _hero_asset("travel-2"), _hero_asset("travel-3")] if s]
+_slide_imgs = "".join(
+  (
+    f'<img src="{escape(uri, quote=True)}" alt="travel photo {idx + 1}" '
+    f'loading="{"eager" if idx == 0 else "lazy"}" '
+    f'fetchpriority="{"high" if idx == 0 else "low"}" decoding="async" />'
+  )
+  for idx, uri in enumerate(_slides)
+)
 _slide_dots = "".join(
     f'<span class="dot{"  active" if i == 0 else ""}" data-idx="{i}"></span>'
     for i in range(len(_slides))
@@ -1467,9 +1558,10 @@ BLANK = (
 
 
 def on_text_search(place: str):
-    if not place.strip():
+  resolved_place = _resolve_place_query(place)
+  if not resolved_place:
         return BLANK
-    return _explore(place.strip())
+  return _explore(resolved_place)
 
 
 def on_image_search(image_source: str):
@@ -1620,4 +1712,9 @@ with gr.Blocks(css=CSS, js=CAROUSEL_JS, theme=gr.themes.Soft(), title="Travel Pl
     )
 
 if __name__ == "__main__":
-    demo.launch(server_port=7860, share=False, show_error=True)
+  demo.launch(
+    server_port=7860,
+    share=False,
+    show_error=True,
+    allowed_paths=[str(BASE)],
+  )
