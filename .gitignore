@@ -22,5 +22,6 @@ env/
 # Editor and OS files
 .vscode/
 .idea/
+.vercel/
 .DS_Store
 Thumbs.db

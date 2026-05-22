@@ -62,6 +62,29 @@ Start the app from the workspace root:
 
 The app runs on `http://127.0.0.1:7860` by default.
 
+## Deploy To Vercel
+
+This repository now includes Vercel deployment files at the workspace root:
+
+- `api/index.py` - ASGI entrypoint that mounts the Gradio app
+- `vercel.json` - routes all requests to the Python function
+- `requirements.txt` - runtime dependencies for the deployed app
+- `.vercelignore` - excludes unrelated projects and local artifacts from upload
+
+Before deploying, add these environment variables in the Vercel project settings:
+
+- `GEOAPIFY_API_KEY`
+- `NVIDIA_API_KEY1`
+- `NVIDIA_API_KEY2`
+- `NVIDIA_API_KEY3`
+- `REQUESTS_VERIFY_SSL`
+
+Deployment notes:
+
+- Keep the Vercel project root at the repository root, not inside `Travel-planner/`.
+- The deployed app reads environment variables from Vercel project settings; it does not require a checked-in `.env` file.
+- The Vercel entrypoint imports `Travel-planner/app.py` and serves the existing Gradio UI through FastAPI.
+
 ## What The UI Shows
 
 - A top carousel with travel imagery

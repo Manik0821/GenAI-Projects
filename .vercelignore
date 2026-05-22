@@ -1,0 +1,7 @@
+.git/
+.venv/
+__pycache__/
+*.py[cod]
+Restraunt-Reccomendation-system/
+Shopify-product-retrieval/
+test_debug.py
