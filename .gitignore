@@ -1,45 +1,79 @@
-# Python caches and bytecode
+# ==========================================
+# Python
+# ==========================================
 __pycache__/
 *.py[cod]
 *.pyo
 *.pyd
 
-# Test and tool caches
+# ==========================================
+# Test & Tool Caches
+# ==========================================
 .pytest_cache/
 .mypy_cache/
 .ruff_cache/
 .coverage
 htmlcov/
 
-# Virtual environments and local secrets
+# ==========================================
+# Virtual Environments
+# ==========================================
 .venv/
 venv/
 env/
+venv311/
+
+# ==========================================
+# Environment Variables
+# ==========================================
 .env
 .env.*
 !.env.example
 
-# Editor and OS files
+# ==========================================
+# IDE / OS
+# ==========================================
 .vscode/
 .idea/
 .vercel/
 .DS_Store
 Thumbs.db
 
-# GenAI / LLM Specific Caches
+# ==========================================
+# Model & HuggingFace Cache
+# ==========================================
 .cache/
 huggingface/
 transformers/
 
-# Local Vector Databases & Indexes
+# ==========================================
+# Local Vector Databases
+# ==========================================
 *.index
 chroma_db/
+**/chroma_db/
 faiss_index/
 .chromadb/
 
-# Large Datasets and Downloads
-*.csv
-*.jsonl
-*.parquet
+# ==========================================
+# Generated Images
+# ==========================================
+recipe_images/
+synthetic_recipe_images/
+processing-data/synthetic_recipe_images/
 
+# ==========================================
+# Large Downloads
+# ==========================================
+*.zip
+
+# ==========================================
+# Certificates
+# ==========================================
 *.pem
+
+# ==========================================
+# Temporary / Logs
+# ==========================================
+*.log
+*.tmp

@@ -1,11 +1,14 @@
 .git/
 .venv/
+venv/
+venv311/
 __pycache__/
 *.py[cod]
-Shopify-product-retrieval/
-test_debug.py
 
-Restraunt-Reccomendation-system/venv/
-Restraunt-Reccomendation-system/venv311/
-Restraunt-Reccomendation-system/.venv/
-Restraunt-Reccomendation-system/**/__pycache__/
+Restraunt-Reccomendation-system/chroma_db/
+Restraunt-Reccomendation-system/vectorDB-index/
+Restraunt-Reccomendation-system/Model-setup/
+Restraunt-Reccomendation-system/processing-data/synthetic_recipe_images/
+Restraunt-Reccomendation-system/recipe_images/
+Restraunt-Reccomendation-system/synthetic-recipe-images.zip
+*.pem

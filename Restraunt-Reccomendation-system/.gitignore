@@ -1,45 +1,104 @@
-# Bytecode and cache
+# ==========================================
+# Python
+# ==========================================
 __pycache__/
-*.pyc
+*.py[cod]
 *.pyo
+*.pyd
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.coverage
+htmlcov/
 
-# Virtual environments
+# ==========================================
+# Virtual Environments
+# ==========================================
 venv/
 .venv/
 env/
 venv311/
 
-# Environment variables
+# ==========================================
+# Environment Variables
+# ==========================================
 .env
+.env.*
+!.env.example
 
-# System files
+# ==========================================
+# OS / IDE
+# ==========================================
 .DS_Store
+Thumbs.db
+.vscode/
+.idea/
 
+# ==========================================
 # Jupyter
+# ==========================================
 .ipynb_checkpoints/
 
-# Data and outputs
+# ==========================================
+# HuggingFace / Model Cache
+# ==========================================
+.cache/
+huggingface/
+transformers/
+
+# ==========================================
+# Local Vector Databases
+# ==========================================
+chroma_db/
+**/chroma_db/
+vectorDB-index/chroma_db/
+faiss_index/
+.chromadb/
+
+# ==========================================
+# Generated Images
+# ==========================================
 recipe_images/
 synthetic_recipe_images/
-chroma_db/
-vectorDB-index/chroma_db/
-**/chroma_db/
-**/chroma_db/**/*.bin
-**/chroma_db/**/*.sqlite3
-**/chroma_db/**/*.pkl
 processing-data/synthetic_recipe_images/
+
+# ==========================================
+# Large Generated Artifacts
+# ==========================================
 *.zip
+
+# ==========================================
+# Ignore generated JSON files
+# (keep source datasets and runtime data)
+# ==========================================
 *.json
+
 !structured_restaurant_data.json
-!augmented-user-review.json
-!Synthetic-User-Reviews.json
-!Recipes.json
+!augmented_food_recipe.json
+!processing-data/augmented_food_recipe.json
 
-# Ignore test artifacts
+!augmented_user_review.json
+!processing-data/augmented_user_review.json
+
+!processing-data/Recipes.json
+!processing-data/Synthetic-User-Reviews.json
+
+# ==========================================
+# Local Certificates
+# ==========================================
+*.pem
+
+# ==========================================
+# Test / Diagnostics
+# ==========================================
 test_outputs/
-
-# Diagnostic and benchmarking scripts
 mcp_diag_a.py
 mcp_diag_b.py
 fastMCP_server/diag_a.py
 fastMCP_server/diag_b.py
+
+# ==========================================
+# Legacy / Temporary
+# ==========================================
+*.log
+*.tmp
