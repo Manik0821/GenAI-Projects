@@ -1,0 +1,9 @@
+{
+  "name": "Connoisseur Companion",
+  "short_name": "Restaurants",
+  "start_url": "/restraunt/",
+  "display": "standalone",
+  "background_color": "#ffffff",
+  "theme_color": "#111111",
+  "icons": []
+}
