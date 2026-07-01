@@ -2,6 +2,10 @@
 .venv/
 __pycache__/
 *.py[cod]
-Restraunt-Reccomendation-system/
 Shopify-product-retrieval/
 test_debug.py
+
+Restraunt-Reccomendation-system/venv/
+Restraunt-Reccomendation-system/venv311/
+Restraunt-Reccomendation-system/.venv/
+Restraunt-Reccomendation-system/**/__pycache__/
