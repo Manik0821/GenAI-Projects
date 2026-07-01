@@ -5,19 +5,32 @@ recommendations by vibe/preference, restaurant detail lookups, and reviews.
 Only ambiguous requests fall back to a short ReAct tool-calling loop.
 """
 
+# SIBLING IMPORT FIX: Dynamically add the current directory to Python path
+import sys
+from pathlib import Path
+
+current_dir = str(Path(__file__).resolve().parent)
+if current_dir not in sys.path:
+    sys.path.append(current_dir)
+
 # Libraries to create our MCP host application
 import os
 import json
-import re
 import gradio as gr
 import httpx
-from pathlib import Path
+# (Path is already imported above)
 from fastmcp.client import Client, PythonStdioTransport
 from langchain_core.messages import HumanMessage, AIMessage, ToolMessage, SystemMessage
 from langchain_openai import ChatOpenAI
 
-
 from dotenv import load_dotenv
+
+# Sibling local imports now resolve flawlessly
+from prompts import SYSTEM_PROMPT, SPECIALIZED_AGENT_PROMPTS
+from routing import _heuristic_route, _thinking_message_for_action
+from formatting import extract_tool_result_text, format_specialized_result
+
+# ... Rest of your app.py code remains exactly the same ...
 
 
 def _load_env() -> None:
@@ -103,34 +116,6 @@ async def _invoke_with_key_failover(messages, tools=None, temperature: float = 0
 
 # Configuration
 SERVER_SCRIPT = str(Path(__file__).parent / "server.py")
-SYSTEM_PROMPT = """You are a helpful AI assistant for a food recommendation system.
-
-Your responsibilities:
-- Help users find restaurants and recipes based on their preferences
-- Ask clarifying questions if the request is unclear
-- Use available tools when needed to fetch or modify data
-- Provide concise, useful, and friendly responses
-
-Guidelines:
-- If the user asks for restaurant or recipe recommendations, use the appropriate tools
-- If the user wants to add, update, or delete data, use database tools
-- If the request is unclear, ask follow-up questions instead of guessing
-- Do NOT make up information if a tool is required—call the tool instead
-- Keep responses conversational and easy to understand
-
-Always think step-by-step before responding."""
-
-SPECIALIZED_AGENT_PROMPTS = {
-    "intent_router": (
-        "You are the Intent Router Agent. Choose exactly one action: "
-        "recommend_by_vibe, get_restaurant_info, get_review, or fallback_react. "
-        "Return strict JSON: {\"action\": str, \"argument\": str}."
-    ),
-    "response_synthesizer": (
-        "You are the Recommendation Synthesizer Agent. Produce concise, helpful output using tool data. "
-        "If data is missing, say so and suggest one follow-up query."
-    ),
-}
 
 
 def _build_openai_tools(mcp_tools):
@@ -146,214 +131,6 @@ def _build_openai_tools(mcp_tools):
         }
         for t in mcp_tools
     ]
-
-
-def _extract_tool_result_text(result) -> str:
-    """Flatten MCP tool content blocks into a bounded plain-text payload."""
-    raw = " ".join(
-        item.text if hasattr(item, "text") else str(item)
-        for item in result.content
-    ) if result.content else "(no result)"
-    # Cap payload to keep agent turn fast.
-    return raw[:5000]
-
-
-def _format_specialized_result(action: str, tool_output: str) -> str:
-    """Render compact user-facing text for specialized tool actions."""
-    try:
-        data = json.loads(tool_output)
-    except Exception:
-        return tool_output[:1200]
-
-    if action == "recommend_by_vibe":
-        vibe = data.get("vibe_searched", "your vibe")
-        vector = data.get("vector_matches", [])[:5]
-        structured = data.get("structured_matches", [])[:5]
-
-        lines = [f"Here are quick picks for '{vibe}':"]
-        seen = set()
-        for item in vector:
-            name = item.get("name", "Unknown")
-            if name in seen:
-                continue
-            seen.add(name)
-            cuisine = item.get("cuisine") or item.get("food_style") or item.get("type") or "Unknown"
-            lines.append(
-                f"- {name} ({item.get('neighborhood', 'Unknown')}), {cuisine}"
-            )
-
-        if len(seen) < 5:
-            for item in structured:
-                name = item.get("name", "Unknown")
-                if name in seen:
-                    continue
-                seen.add(name)
-                cuisine = item.get("cuisine") or item.get("food_style") or item.get("type") or "Unknown"
-                lines.append(
-                    f"- {name} ({item.get('neighborhood', 'Unknown')}), {cuisine}"
-                )
-                if len(seen) >= 5:
-                    break
-
-        if len(lines) == 1:
-            return "I couldn't find strong matches for that vibe. Try a specific vibe like 'moody', 'cozy', or 'zen'."
-        return "\n".join(lines)
-
-    if action == "get_restaurant_info":
-        if data.get("status") != "found":
-            return data.get("message", "I couldn't find that restaurant.")
-        result = (data.get("results") or [{}])[0]
-        return (
-            f"{result.get('name', 'Restaurant')}\n"
-            f"- Cuisine: {result.get('cuisine', result.get('food_style', 'Unknown'))}\n"
-            f"- Neighborhood: {result.get('neighborhood', result.get('location', 'Unknown'))}\n"
-            f"- Rating: {result.get('rating', 'N/A')}\n"
-            f"- Price: {result.get('price_range', 'N/A')}"
-        )
-
-    if action == "get_review":
-        if data.get("status") != "found":
-            return data.get("message", "I couldn't find that review.")
-        return (
-            f"Review for {data.get('restaurant', 'Unknown')}:\n"
-            f"- Reviewer: {data.get('reviewer', 'Unknown')}\n"
-            f"- Rating: {data.get('rating', 'N/A')}\n"
-            f"- {str(data.get('review_text', 'N/A'))[:700]}"
-        )
-
-    return tool_output[:1200]
-
-
-PREFERENCE_KEYWORDS = {
-    "spicy",
-    "healthy",
-    "light",
-    "fresh",
-    "protein",
-    "vegetarian",
-    "vegan",
-    "gluten-free",
-    "gluten free",
-    "low carb",
-    "keto",
-    "high protein",
-    "comfort",
-    "savory",
-    "sweet",
-    "umami",
-    "cozy",
-    "zen",
-    "romantic",
-    "moody",
-}
-
-CUISINE_KEYWORDS = {
-    "french",
-    "italian",
-    "japanese",
-    "sushi",
-    "ramen",
-    "chinese",
-    "szechuan",
-    "korean",
-    "mexican",
-    "oaxacan",
-    "indian",
-    "persian",
-    "mediterranean",
-    "vietnamese",
-    "thai",
-    "american",
-    "seafood",
-    "lebanese",
-    "tapas",
-    "bbq",
-    "barbecue",
-    "fusion",
-    "pizza",
-    "burger",
-    "steak",
-    "asian",
-    "latin",
-    "spanish",
-    "greek",
-    "turkish",
-}
-
-
-def _extract_vibe_argument(user_message: str) -> str:
-    """Extract a concise recommendation query from free-form preference text.
-
-    Example:
-    - "I want to eat something spicy" -> "spicy"
-    - "healthy food in Santa Monica" -> "healthy in santa monica"
-    - "french restaurant" -> "french"
-    - "italian dishes near pasadena" -> "italian near pasadena"
-    """
-    lower = user_message.strip().lower()
-
-    # Capture explicit location with "in <location>" or "near <location>" patterns
-    location = ""
-    # Try "in <location>" pattern first
-    location_match = re.search(r"\b(?:in|near)\s+([a-z][a-z\s\-()]{1,40})(?:\s|$)", lower)
-    if location_match:
-        location = location_match.group(1).strip()
-
-    # Check cuisine keywords first (highest priority for fast-path)
-    matched_cuisines = [k for k in CUISINE_KEYWORDS if k in lower]
-    if matched_cuisines:
-        core = ", ".join(dict.fromkeys(matched_cuisines))
-        return f"{core} in {location}" if location else core
-
-    # Check preference keywords next
-    matched_prefs = [k for k in PREFERENCE_KEYWORDS if k in lower]
-    if matched_prefs:
-        core = ", ".join(dict.fromkeys(matched_prefs))
-        return f"{core} in {location}" if location else core
-
-    # Handle "something <descriptor>" phrasing.
-    something_match = re.search(r"something\s+([a-z\-]+)", lower)
-    if something_match:
-        descriptor = something_match.group(1).strip()
-        return f"{descriptor} in {location}" if location else descriptor
-
-    return user_message.strip()
-
-
-def _heuristic_route(user_message: str) -> tuple[str, str]:
-    """Route obvious intents without LLM calls to minimize response latency."""
-    text = user_message.strip()
-    lower = text.lower()
-
-    if any(k in lower for k in ["review", "reviews"]):
-        return "get_review", text
-    if any(k in lower for k in ["tell me about", "about", "details", "info", "information"]):
-        return "get_restaurant_info", text
-    if any(
-        k in lower
-        for k in [
-            "vibe",
-            "moody",
-            "romantic",
-            "zen",
-            "cozy",
-            "ambience",
-            "atmosphere",
-            "spot",
-            "restaurants",
-            "recommend",
-            "eat",
-            "hungry",
-            "craving",
-            "something",
-            "cuisine",
-            "food",
-            *PREFERENCE_KEYWORDS,
-            *CUISINE_KEYWORDS,
-        ]
-    ):
-        return "recommend_by_vibe", _extract_vibe_argument(text)
-    return "fallback_react", text
 
 
 async def _route_with_specialized_agent(user_message: str) -> tuple[str, str]:
@@ -378,40 +155,6 @@ async def _route_with_specialized_agent(user_message: str) -> tuple[str, str]:
         pass
     return "fallback_react", user_message
 
-
-def _thinking_message_for_action(action: str, query: str = "") -> str:
-    """Return a dynamic thinking message based on action and query context."""
-    query_lower = query.lower().strip()
-    
-    if action == "recommend_by_vibe":
-        # Extract location if present
-        location_match = re.search(r"\bin\s+([a-z][a-z\s\-()]{1,40})$", query_lower)
-        location = location_match.group(1).strip() if location_match else ""
-        
-        # Show specific messages based on query type
-        if any(cuisine in query_lower for cuisine in CUISINE_KEYWORDS):
-            for cuisine in CUISINE_KEYWORDS:
-                if cuisine in query_lower:
-                    if location:
-                        return f"[*] Searching for {cuisine.title()} cuisines in {location.title()}..."
-                    return f"[*] Searching for restaurants that serve {cuisine.title()} cuisines..."
-        if any(pref in query_lower for pref in PREFERENCE_KEYWORDS):
-            for pref in PREFERENCE_KEYWORDS:
-                if pref in query_lower:
-                    if location:
-                        return f"[*] Finding {pref} restaurants in {location.title()}..."
-                    return f"[*] Finding {pref} restaurants for you..."
-        if location:
-            return f"[*] Searching for restaurants in {location.title()}..."
-        return "[*] Searching for restaurants matching your taste..."
-    elif action == "get_restaurant_info":
-        return f"[*] Looking up details for {query}..."
-    elif action == "get_review":
-        return f"[*] Fetching reviews and dining experience for {query}..."
-    else:
-        return "[*] Processing your request..."
-
-
 async def _specialized_fast_path(client: Client, user_message: str, history: list) -> tuple[str, str]:
     """Execute one specialized tool call and format the result. Returns (response, action)."""
     action, argument = await _route_with_specialized_agent(user_message)
@@ -425,8 +168,8 @@ async def _specialized_fast_path(client: Client, user_message: str, history: lis
     else:
         tool_result = await client.call_tool("get_restaurant_info", {"restaurant_name": argument})
 
-    tool_output = _extract_tool_result_text(tool_result)
-    result = _format_specialized_result(action, tool_output)
+    tool_output = extract_tool_result_text(tool_result)
+    result = format_specialized_result(action, tool_output)
     return result, action
 
 # MCP Host — ReAct Agent Loop
@@ -478,7 +221,7 @@ async def chat_with_agent(user_message: str, history: list) -> tuple[str, str]:
             # Execute each tool call via the MCP server and feed results back
             for tool_call in response.tool_calls[:1]:
                 result = await client.call_tool(tool_call["name"], tool_call["args"])
-                tool_output = _extract_tool_result_text(result)
+                tool_output = extract_tool_result_text(result)
                 messages.append(ToolMessage(content=tool_output, tool_call_id=tool_call["id"]))
 
         return "I wasn't able to complete that request. Please try again.", "fallback_react"

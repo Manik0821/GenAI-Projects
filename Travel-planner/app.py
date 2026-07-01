@@ -74,7 +74,10 @@ _MIME = {".jpg": "image/jpeg", ".jpeg": "image/jpeg",
 
 
 def _static_file_url(path: Path) -> str:
-  return "/gradio_api/file=" + quote(path.resolve().as_posix(), safe="/")
+  prefix = os.getenv("TRAVEL_APP_ROUTE_PREFIX", "").strip()
+  if prefix:
+    return f"{prefix.rstrip('/')}/gradio_api/file=" + quote(path.resolve().as_posix(), safe="/")
+  return "gradio_api/file=" + quote(path.resolve().as_posix(), safe="/")
 
 
 def _hero_asset(name: str) -> str:
@@ -151,7 +154,7 @@ def _resolve_place_query(query: str) -> str:
   return candidate
 
 
-_slides = [s for s in [_hero_asset("travel-1"), _hero_asset("travel-2"), _hero_asset("travel-3")] if s]
+_slides = [s for s in [_hero_asset("travel-1"), _hero_asset("travel-2"), _hero_asset("travel-3"), _hero_asset("travel-4")] if s]
 _slide_imgs = "".join(
   (
     f'<img src="{escape(uri, quote=True)}" alt="travel photo {idx + 1}" '

@@ -30,10 +30,10 @@ vectorDB-index/chroma_db/
 processing-data/synthetic_recipe_images/
 *.zip
 *.json
-structured_restaurant_data.json
-augmented-user-review.json
-Synthetic-User-Reviews.json
-Recipes.json
+!structured_restaurant_data.json
+!augmented-user-review.json
+!Synthetic-User-Reviews.json
+!Recipes.json
 
 # Ignore test artifacts
 test_outputs/
