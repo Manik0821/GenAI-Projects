@@ -4,11 +4,12 @@ venv/
 venv311/
 __pycache__/
 *.py[cod]
+*.pem
 
 Restraunt-Reccomendation-system/chroma_db/
 Restraunt-Reccomendation-system/vectorDB-index/
-Restraunt-Reccomendation-system/Model-setup/
-Restraunt-Reccomendation-system/processing-data/synthetic_recipe_images/
 Restraunt-Reccomendation-system/recipe_images/
-Restraunt-Reccomendation-system/synthetic-recipe-images.zip
-*.pem
+Restraunt-Reccomendation-system/synthetic_recipe_images/
+Restraunt-Reccomendation-system/processing-data/synthetic_recipe_images/
+Restraunt-Reccomendation-system/*.zip
+Restraunt-Reccomendation-system/**/chroma_db/

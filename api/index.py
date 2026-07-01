@@ -11,27 +11,38 @@ from fastapi import FastAPI
 from fastapi.responses import RedirectResponse
 
 ROOT = Path(__file__).resolve().parents[1]
+
 TRAVEL_APP_PATH = ROOT / "Travel-planner" / "app.py"
-RESTRAUNT_APP_PATH = ROOT / "Restraunt-Reccomendation-system" / "fastMCP_server" / "app.py"
+RESTRAUNT_APP_PATH = (
+    ROOT
+    / "Restraunt-Reccomendation-system"
+    / "fastMCP_server"
+    / "app.py"
+)
+
 os.environ.setdefault("TRAVEL_APP_ROUTE_PREFIX", "/travel")
 
-if os.getenv("VERCEL"):
-    # Keep the restaurant recommender serverless-safe by disabling the local Chroma path.
-    os.environ.setdefault("RESTAURANT_ENABLE_CHROMA", "0")
-    os.environ.setdefault("RESTAURANT_DIRECT_TOOLS", "1")
+print("INDEX BACKEND_API_URL =", os.getenv("BACKEND_API_URL"), flush=True)
 
 
 def _load_app_module(module_name: str, module_path: Path):
+    if not module_path.exists():
+        raise RuntimeError(f"App module not found: {module_path}")
+
     spec = importlib.util.spec_from_file_location(module_name, module_path)
+
     if spec is None or spec.loader is None:
         raise RuntimeError(f"Could not load module from {module_path}")
+
     module = importlib.util.module_from_spec(spec)
     spec.loader.exec_module(module)
+
     return module
 
 
-travel_app = _load_app_module("travel_planer_app", TRAVEL_APP_PATH)
+travel_app = _load_app_module("travel_planner_app", TRAVEL_APP_PATH)
 restraunt_app = _load_app_module("restraunt_reccomendation_app", RESTRAUNT_APP_PATH)
+
 fastapi_app = FastAPI(title="GenAI Projects")
 
 
@@ -40,9 +51,17 @@ def root_redirect():
     return RedirectResponse(url="/travel")
 
 
-@fastapi_app.api_route("/gradio_api/{path:path}", methods=["GET", "HEAD"])
-def gradio_file_redirect(path: str):
-    return RedirectResponse(url=f"/travel/gradio_api/{path}", status_code=307)
+@fastapi_app.get("/manifest.json", include_in_schema=False)
+def manifest():
+    return {
+        "name": "GenAI Projects",
+        "short_name": "GenAI",
+        "start_url": "/travel",
+        "display": "standalone",
+        "background_color": "#ffffff",
+        "theme_color": "#111111",
+        "icons": [],
+    }
 
 
 app = gr.mount_gradio_app(
